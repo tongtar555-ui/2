@@ -97,21 +97,27 @@
   .sticker-layer{ position:absolute; inset:0; pointer-events:none; }
   .sticker-layer.back{ z-index:2; }
   .sticker-layer.front{ z-index:4; }
-  .sticker{ position:absolute; touch-action:none; cursor:move; pointer-events:auto; user-select:none; }
-  .sticker img{ width:100%; height:100%; display:block; pointer-events:none; }
-  .sticker .emoji{ font-size:100%; line-height:1; width:100%; height:100%; display:flex; align-items:center; justify-content:center; pointer-events:none; }
-  .sticker .resize-handle{
+  .sticker-layer.hit{ z-index:10; }
+
+  /* pure visual copy: no pointer events, sits in front/back layer per sticker's layer setting */
+  .sticker-visual{ position:absolute; pointer-events:none; }
+  .sticker-visual img{ width:100%; height:100%; display:block; }
+  .sticker-visual .emoji{ font-size:100%; line-height:1; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+
+  /* invisible interactive hit-box: ALWAYS on top so it's clickable/draggable regardless of visual layer */
+  .sticker-hit{ position:absolute; touch-action:none; cursor:move; pointer-events:auto; user-select:none; }
+  .sticker-hit .resize-handle{
     position:absolute; right:-7px; bottom:-7px; width:14px; height:14px; border-radius:50%;
-    background:#fff; border:2px solid var(--brown); display:none; cursor:se-resize;
+    background:#fff; border:2px solid var(--brown); display:none; cursor:se-resize; pointer-events:auto;
   }
-  .sticker.selected{ outline:1.5px dashed var(--rose); outline-offset:3px; }
-  .sticker.selected .resize-handle{ display:block; }
+  .sticker-hit.selected{ outline:1.5px dashed var(--rose); outline-offset:3px; }
+  .sticker-hit.selected .resize-handle{ display:block; }
   .sticker-toolbar{
     position:absolute; top:-32px; left:50%; transform:translateX(-50%); display:none; gap:4px;
     background:#fff; border:1px solid var(--line); border-radius:20px; padding:4px 6px;
-    box-shadow:0 6px 14px -8px rgba(0,0,0,0.3); white-space:nowrap;
+    box-shadow:0 6px 14px -8px rgba(0,0,0,0.3); white-space:nowrap; pointer-events:auto;
   }
-  .sticker.selected .sticker-toolbar{ display:flex; }
+  .sticker-hit.selected .sticker-toolbar{ display:flex; }
   .sticker-toolbar button{ border:none; background:none; cursor:pointer; font-size:0.78rem; padding:2px 4px; }
 
   .overlay{ position:fixed; inset:0; background:rgba(61,50,41,0.25); z-index:90; display:none; }
@@ -219,6 +225,7 @@
     </div>
 
     <div class="sticker-layer front" id="stickersFront"></div>
+    <div class="sticker-layer hit" id="stickersHit"></div>
   </div>
   <input type="file" id="coverInput" accept="image/*">
 </div>
@@ -427,7 +434,7 @@
   const $ = id => document.getElementById(id);
   const calCard=$('calCard'), calCover=$('calCover'), calTitle=$('calTitle');
   const weekdayRow=$('weekdayRow'), grid=$('grid');
-  const stickersBack=$('stickersBack'), stickersFront=$('stickersFront');
+  const stickersBack=$('stickersBack'), stickersFront=$('stickersFront'), stickersHit=$('stickersHit');
 
   function escapeHtml(s){
     return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -483,59 +490,91 @@
     persist();
   }
 
+  // Two things are drawn per sticker:
+  //  - a VISUAL copy (img/emoji only, no pointer events) placed in the front or back layer
+  //    according to st.layer, so it appears in front of / behind the grid lines & text.
+  //  - an invisible HIT box, always in the topmost "hit" layer, which is what actually
+  //    receives clicks/drags/the toolbar. This keeps stickers selectable & draggable no
+  //    matter which visual layer they're drawn in (the grid cells sit "in front" of the
+  //    back visual layer in the DOM even though they're transparent, so without a
+  //    separate always-on-top hit box, back-layer stickers become unclickable).
+  function applyBox(el, st){
+    el.style.left = st.x+'px';
+    el.style.top = st.y+'px';
+    el.style.width = st.w+'px';
+    el.style.height = st.h+'px';
+    el.style.transform = 'rotate('+(st.rot||0)+'deg)';
+  }
+
   function renderStickers(md){
-    stickersBack.innerHTML=''; stickersFront.innerHTML='';
+    stickersBack.innerHTML=''; stickersFront.innerHTML=''; stickersHit.innerHTML='';
     md.stickers.forEach(st=>{
-      const el = document.createElement('div');
-      el.className='sticker'+(st.id===selectedStickerId?' selected':'');
-      el.style.left = st.x+'px';
-      el.style.top = st.y+'px';
-      el.style.width = st.w+'px';
-      el.style.height = st.h+'px';
-      el.style.transform = 'rotate('+(st.rot||0)+'deg)';
-      el.dataset.id = st.id;
-
+      // visual
+      const visual = document.createElement('div');
+      visual.className='sticker-visual';
+      visual.dataset.id = st.id;
+      applyBox(visual, st);
       if(st.type==='image'){
-        const img=document.createElement('img'); img.src=st.src; el.appendChild(img);
+        const img=document.createElement('img'); img.src=st.src; visual.appendChild(img);
       } else {
-        const div=document.createElement('div'); div.className='emoji'; div.style.fontSize=Math.round(st.h*0.85)+'px'; div.textContent=st.char; el.appendChild(div);
+        const div=document.createElement('div'); div.className='emoji'; div.style.fontSize=Math.round(st.h*0.85)+'px'; div.textContent=st.char; visual.appendChild(div);
       }
+      (st.layer==='front'?stickersFront:stickersBack).appendChild(visual);
 
-      const handle=document.createElement('div'); handle.className='resize-handle'; el.appendChild(handle);
+      // hit box (always interactive & on top)
+      const hit = document.createElement('div');
+      hit.className='sticker-hit'+(st.id===selectedStickerId?' selected':'');
+      hit.dataset.id = st.id;
+      applyBox(hit, st);
+
+      const handle=document.createElement('div'); handle.className='resize-handle'; hit.appendChild(handle);
 
       const toolbar=document.createElement('div'); toolbar.className='sticker-toolbar';
       toolbar.innerHTML = '<button data-act="rotL">↺</button><button data-act="rotR">↻</button><button data-act="layer">'+(st.layer==='front'?'⬆︎หน้า':'⬇︎หลัง')+'</button><button data-act="del">🗑</button>';
-      el.appendChild(toolbar);
+      hit.appendChild(toolbar);
 
-      el.addEventListener('pointerdown', (e)=>{
+      hit.addEventListener('pointerdown', (e)=>{
         if(e.target.closest('.resize-handle') || e.target.closest('.sticker-toolbar')) return;
         e.stopPropagation();
         selectSticker(st.id);
-        startDrag(e, st, el);
+        startDrag(e, st, hit, visual);
       });
-      handle.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); selectSticker(st.id); startResize(e, st, el); });
+      handle.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); selectSticker(st.id); startResize(e, st, hit, visual); });
       toolbar.addEventListener('click', (e)=>{
         const act = e.target.dataset.act;
         if(!act) return;
         e.stopPropagation();
         if(act==='del'){ md.stickers = md.stickers.filter(s=>s.id!==st.id); selectedStickerId=null; render(); }
-        if(act==='rotL'){ st.rot = (st.rot||0) - 15; render(); }
-        if(act==='rotR'){ st.rot = (st.rot||0) + 15; render(); }
+        if(act==='rotL'){ st.rot = (st.rot||0) - 15; applyBox(hit, st); applyBox(visual, st); persist(); }
+        if(act==='rotR'){ st.rot = (st.rot||0) + 15; applyBox(hit, st); applyBox(visual, st); persist(); }
         if(act==='layer'){ st.layer = st.layer==='front'?'back':'front'; render(); }
       });
 
-      (st.layer==='front'?stickersFront:stickersBack).appendChild(el);
+      stickersHit.appendChild(hit);
     });
   }
 
-  function selectSticker(id){ selectedStickerId = id; render(); }
+  // Selecting/deselecting only toggles a class on the existing hit-box elements —
+  // it must NOT call render(), otherwise the element currently mid-drag gets replaced
+  // and the drag stops tracking the mouse (this was the cause of "dragging doesn't move
+  // in real time").
+  function selectSticker(id){
+    selectedStickerId = id;
+    refreshSelectionClasses();
+  }
+  function refreshSelectionClasses(){
+    stickersHit.querySelectorAll('.sticker-hit').forEach(h=>{
+      h.classList.toggle('selected', h.dataset.id === selectedStickerId);
+    });
+  }
 
-  function startDrag(e, st, el){
+  function startDrag(e, st, hit, visual){
     const startX=e.clientX, startY=e.clientY, origX=st.x, origY=st.y;
     function move(ev){
       st.x = origX + (ev.clientX-startX);
       st.y = origY + (ev.clientY-startY);
-      el.style.left = st.x+'px'; el.style.top = st.y+'px';
+      hit.style.left = st.x+'px'; hit.style.top = st.y+'px';
+      visual.style.left = st.x+'px'; visual.style.top = st.y+'px';
     }
     function up(){
       document.removeEventListener('pointermove', move);
@@ -546,7 +585,7 @@
     document.addEventListener('pointerup', up);
   }
 
-  function startResize(e, st, el){
+  function startResize(e, st, hit, visual){
     e.preventDefault();
     const startX=e.clientX, startY=e.clientY, origW=st.w, origH=st.h;
     const ratio = origH/origW;
@@ -554,8 +593,9 @@
       let newW = Math.max(24, origW + (ev.clientX-startX));
       let newH = Math.max(24, newW*ratio);
       st.w=newW; st.h=newH;
-      el.style.width=newW+'px'; el.style.height=newH+'px';
-      const emojiDiv = el.querySelector('.emoji');
+      hit.style.width=newW+'px'; hit.style.height=newH+'px';
+      visual.style.width=newW+'px'; visual.style.height=newH+'px';
+      const emojiDiv = visual.querySelector('.emoji');
       if(emojiDiv) emojiDiv.style.fontSize = Math.round(newH*0.85)+'px';
     }
     function up(){
@@ -582,8 +622,8 @@
   }
 
   document.addEventListener('pointerdown', (e)=>{
-    if(!e.target.closest('.sticker')){
-      if(selectedStickerId){ selectedStickerId=null; render(); }
+    if(!e.target.closest('.sticker-hit')){
+      if(selectedStickerId){ selectedStickerId=null; refreshSelectionClasses(); }
     }
   });
 
