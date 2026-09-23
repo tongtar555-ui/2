@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scrapbook Calendar Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=EB+Garamond:ital@0;1&family=Dancing+Script:wght@500;700&family=Great+Vibes&family=Parisienne&family=Petit+Formal+Script&family=Tangerine:wght@700&family=Sacramento&family=Italiana&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #3D3229;
+    --ink-soft: #6B5D4F;
+    --brown: #907562;
+    --brown-deep: #6E5847;
+    --rose: #B8695C;
+    --line: rgba(61,50,41,0.16);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Work Sans', sans-serif;
+    color:var(--ink);
+    background:transparent;
+    min-height:100vh;
+    padding:28px 16px;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+  }
+
+  .stage{
+    position:relative;
+    width:100%;
+    max-width:520px;
+  }
+
+  .float-icons{
+    position:absolute; top:-46px; right:0; display:flex; gap:8px; z-index:50;
+  }
+  .icon-btn{
+    width:36px; height:36px; border-radius:50%; border:1px solid var(--line);
+    background:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:1rem; cursor:pointer; box-shadow:0 6px 14px -8px rgba(61,50,41,0.4);
+  }
+  .icon-btn:hover{ background:#FBF7F0; }
+
+  .cal-card{
+    position:relative; background:transparent; border-radius:6px; overflow:visible;
+    box-shadow:0 10px 26px -18px rgba(61,50,41,0.5);
+  }
+  .cal-clip{
+    border-radius:6px; overflow:hidden; border:1px solid var(--line);
+    position:relative; z-index:3; background:transparent;
+  }
+  .cal-cover{
+    position:relative; z-index:1; min-height:56px; display:flex; align-items:center;
+    background-size:cover; background-position:center;
+  }
+  .title-box{
+    width:100%; padding:12px 16px; display:flex; align-items:center; justify-content:space-between;
+    gap:10px; background:linear-gradient(0deg, rgba(0,0,0,0.28), rgba(0,0,0,0));
+  }
+  .cal-title{ font-weight:700; letter-spacing:0.2px; white-space:nowrap; }
+  .nav-btn{
+    background:rgba(255,255,255,0.35); border:none; width:24px; height:24px; border-radius:50%;
+    cursor:pointer; font-size:0.85rem; line-height:1; color:inherit;
+  }
+  .nav-btn:hover{ background:rgba(255,255,255,0.55); }
+  .cover-upload-hint{
+    position:absolute; top:8px; right:10px; font-size:0.62rem;
+    background:rgba(255,255,255,0.8); padding:3px 8px; border-radius:20px; cursor:pointer;
+    color:var(--ink-soft); border:1px solid var(--line); z-index:2;
+  }
+
+  .cal-body{ position:relative; z-index:3; background:transparent; }
+  .weekday-row{ display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid var(--line); }
+  .weekday-row div{ text-align:center; font-size:0.7rem; padding:7px 2px; color:var(--ink-soft); font-weight:600; }
+  .grid{ display:grid; grid-template-columns:repeat(7,1fr); }
+  .day{
+    border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+    position:relative; padding:6px 6px 8px; cursor:pointer; background:transparent;
+  }
+  .day.empty{ cursor:default; }
+  .day .num{ font-size:0.76rem; font-weight:500; }
+  .day .evt{ font-size:0.64rem; margin-top:4px; line-height:1.25; display:flex; gap:3px; }
+  .day .evt-time{ font-size:0.58rem; opacity:0.7; display:block; }
+  .day.today .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:17px; height:17px; border-radius:50%; background:var(--brown); color:#fff;
+  }
+  .size-s .day{ min-height:52px; }
+  .size-m .day{ min-height:72px; }
+  .size-l .day{ min-height:92px; }
+  .size-xl .day{ min-height:114px; }
+
+  .sticker-layer{ position:absolute; inset:0; pointer-events:none; }
+  .sticker-layer.back{ z-index:2; }
+  .sticker-layer.front{ z-index:4; }
+  .sticker{ position:absolute; touch-action:none; cursor:move; pointer-events:auto; user-select:none; }
+  .sticker img{ width:100%; height:100%; display:block; pointer-events:none; }
+  .sticker .emoji{ font-size:100%; line-height:1; width:100%; height:100%; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .sticker .resize-handle{
+    position:absolute; right:-7px; bottom:-7px; width:14px; height:14px; border-radius:50%;
+    background:#fff; border:2px solid var(--brown); display:none; cursor:se-resize;
+  }
+  .sticker.selected{ outline:1.5px dashed var(--rose); outline-offset:3px; }
+  .sticker.selected .resize-handle{ display:block; }
+  .sticker-toolbar{
+    position:absolute; top:-32px; left:50%; transform:translateX(-50%); display:none; gap:4px;
+    background:#fff; border:1px solid var(--line); border-radius:20px; padding:4px 6px;
+    box-shadow:0 6px 14px -8px rgba(0,0,0,0.3); white-space:nowrap;
+  }
+  .sticker.selected .sticker-toolbar{ display:flex; }
+  .sticker-toolbar button{ border:none; background:none; cursor:pointer; font-size:0.78rem; padding:2px 4px; }
+
+  .overlay{ position:fixed; inset:0; background:rgba(61,50,41,0.25); z-index:90; display:none; }
+  .overlay.show{ display:block; }
+  .drawer{
+    position:fixed; top:0; right:-360px; width:340px; max-width:88vw; height:100%;
+    background:#fff; z-index:91; box-shadow:-14px 0 30px -14px rgba(0,0,0,0.35);
+    padding:20px 20px 40px; overflow-y:auto; transition:right 0.25s ease;
+  }
+  .drawer.show{ right:0; }
+  .drawer h2{
+    font-family:'Playfair Display', serif; font-style:italic; font-weight:500; font-size:1.1rem;
+    margin:0 0 14px; color:var(--brown-deep); display:flex; justify-content:space-between; align-items:center;
+  }
+  .drawer h2 button{ border:none; background:none; font-size:1.1rem; cursor:pointer; color:var(--ink-soft); }
+  .field{ margin-bottom:15px; }
+  .field label{
+    display:block; font-size:0.66rem; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--ink-soft); margin-bottom:6px; font-weight:600;
+  }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .color-field{ display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:4px; padding:5px 8px; }
+  .color-field input[type=color]{ width:24px; height:24px; border:none; padding:0; background:none; cursor:pointer; }
+  .color-field input[type=text]{ border:none; outline:none; font-size:0.76rem; width:100%; color:var(--ink); font-family:inherit; }
+  select, input[type=range]{
+    width:100%; font-family:inherit; font-size:0.8rem; padding:7px 9px;
+    border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink);
+  }
+  select{ cursor:pointer; }
+  .seg{ display:flex; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .seg button{ flex:1; padding:7px 4px; background:#fff; border:none; border-right:1px solid var(--line); font-size:0.66rem; cursor:pointer; color:var(--ink-soft); }
+  .seg button:last-child{ border-right:none; }
+  .seg button.active{ background:var(--brown); color:#fff; }
+  .symrow{ display:flex; gap:6px; }
+  .symrow button{ flex:1; border:1px solid var(--line); border-radius:4px; background:#fff; padding:7px 0; cursor:pointer; font-size:0.95rem; }
+  .symrow button.active{ border-color:var(--brown); background:#F6EFE6; }
+  .scaleval{ font-size:0.68rem; color:var(--ink-soft); float:right; }
+  hr.div{ border:none; border-top:1px solid var(--line); margin:18px 0; }
+  .linkrow{ display:flex; gap:8px; }
+  .linkrow button{ flex:1; background:var(--brown); color:#fff; border:none; border-radius:4px; padding:9px 6px; font-size:0.74rem; cursor:pointer; font-weight:600; }
+  .linkrow button.ghost{ background:#fff; color:var(--brown-deep); border:1px solid var(--brown); }
+  .copied-msg{ font-size:0.68rem; color:var(--rose); margin-top:8px; min-height:14px; }
+  input[type=file]{ display:none; }
+  .monthjump{ display:flex; gap:8px; }
+
+  .popover{
+    position:absolute; top:-8px; right:44px; width:230px; background:#fff;
+    border:1px solid var(--line); border-radius:8px; box-shadow:0 14px 30px -16px rgba(0,0,0,0.4);
+    padding:14px; z-index:95; display:none;
+  }
+  .popover.show{ display:block; }
+  .popover h3{ margin:0 0 10px; font-size:0.78rem; color:var(--ink-soft); font-weight:600; }
+  .popover .upload-btn{
+    width:100%; padding:8px; border:1px dashed var(--brown); border-radius:6px; background:#FBF7F0;
+    color:var(--brown-deep); font-size:0.76rem; cursor:pointer; margin-bottom:12px;
+  }
+  .emoji-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .emoji-grid button{ border:1px solid var(--line); border-radius:6px; background:#fff; font-size:1.1rem; padding:6px 0; cursor:pointer; }
+  .emoji-grid button:hover{ background:#FBF7F0; }
+
+  .modal-bg{ position:fixed; inset:0; background:rgba(61,50,41,0.35); display:none; align-items:center; justify-content:center; z-index:99; padding:20px; }
+  .modal-bg.show{ display:flex; }
+  .modal{ background:#fff; border-radius:6px; padding:22px; width:100%; max-width:320px; box-shadow:0 30px 60px -20px rgba(0,0,0,0.4); }
+  .modal h3{ margin:0 0 14px; font-family:'Playfair Display',serif; font-style:italic; color:var(--brown-deep); font-size:1.02rem; }
+  .modal .field input{ width:100%; font-family:inherit; font-size:0.8rem; padding:8px 10px; border:1px solid var(--line); border-radius:4px; }
+  .modal-actions{ display:flex; gap:8px; margin-top:16px; }
+  .modal-actions button{ flex:1; padding:9px; border-radius:4px; border:none; cursor:pointer; font-size:0.78rem; font-weight:600; }
+  .modal-actions .save{ background:var(--brown); color:#fff; }
+  .modal-actions .del{ background:#fff; color:var(--rose); border:1px solid var(--rose); }
+  .modal-actions .cancel{ background:#fff; color:var(--ink-soft); border:1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <div class="float-icons">
+    <button class="icon-btn" id="stickerIconBtn" title="เพิ่มสติกเกอร์">🖼️</button>
+    <button class="icon-btn" id="settingsIconBtn" title="ตั้งค่า">⚙️</button>
+  </div>
+
+  <div class="popover" id="stickerPopover">
+    <h3>เพิ่มรูปภาพ/สติกเกอร์</h3>
+    <button class="upload-btn" id="uploadStickerBtn">+ อัปโหลดรูปจากเครื่อง</button>
+    <input type="file" id="stickerFileInput" accept="image/*">
+    <h3>สติกเกอร์สำเร็จรูป</h3>
+    <div class="emoji-grid" id="emojiGrid"></div>
+  </div>
+
+  <div class="cal-card" id="calCard">
+    <div class="sticker-layer back" id="stickersBack"></div>
+
+    <div class="cal-clip">
+      <div class="cal-cover" id="calCover">
+        <div class="cover-upload-hint" id="coverHint">+ รูปปกเดือนนี้</div>
+        <div class="title-box">
+          <button class="nav-btn" id="prevBtn">‹</button>
+          <span class="cal-title" id="calTitle">September 2026</span>
+          <button class="nav-btn" id="nextBtn">›</button>
+        </div>
+      </div>
+      <div class="cal-body">
+        <div class="weekday-row" id="weekdayRow"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+    </div>
+
+    <div class="sticker-layer front" id="stickersFront"></div>
+  </div>
+  <input type="file" id="coverInput" accept="image/*">
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <h2>Settings <button id="closeDrawer">✕</button></h2>
+
+  <div class="field">
+    <label>ไปยังเดือน/ปี (เลือกได้อิสระ)</label>
+    <div class="monthjump">
+      <select id="jumpMonth"></select>
+      <select id="jumpYear"></select>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <div class="field">
+    <label>Title bar color</label>
+    <div class="color-field">
+      <input type="color" id="cTitleBar" value="#907562">
+      <input type="text" id="cTitleBarHex" value="#907562">
+    </div>
+  </div>
+  <div class="row2">
+    <div class="field">
+      <label>Border / line color</label>
+      <div class="color-field">
+        <input type="color" id="cBorder" value="#907562">
+        <input type="text" id="cBorderHex" value="#907562">
+      </div>
+    </div>
+    <div class="field">
+      <label>Text color</label>
+      <div class="color-field">
+        <input type="color" id="cText" value="#3d3229">
+        <input type="text" id="cTextHex" value="#3d3229">
+      </div>
+    </div>
+  </div>
+  <div class="field">
+    <label>Title color</label>
+    <div class="color-field">
+      <input type="color" id="cTitle" value="#ffffff">
+      <input type="text" id="cTitleHex" value="#ffffff">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Font (ใช้ทั้งปฏิทิน)</label>
+    <select id="calFont">
+      <option value="'Playfair Display', serif">Playfair Display</option>
+      <option value="'Cormorant Garamond', serif">Cormorant Garamond</option>
+      <option value="'EB Garamond', serif">EB Garamond</option>
+      <option value="'Italiana', serif">Italiana</option>
+      <option value="'Work Sans', sans-serif">Work Sans</option>
+      <option value="'Dancing Script', cursive">Dancing Script</option>
+      <option value="'Great Vibes', cursive">Great Vibes</option>
+      <option value="'Parisienne', cursive">Parisienne</option>
+      <option value="'Petit Formal Script', cursive">Petit Formal Script</option>
+      <option value="'Tangerine', cursive">Tangerine</option>
+      <option value="'Sacramento', cursive">Sacramento</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Weekday format</label>
+    <select id="weekdayFormat">
+      <option value="initial">Initial (S M T W T F S)</option>
+      <option value="short">Short (Sun Mon Tue…)</option>
+      <option value="full">Full (Sunday Monday…)</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Event symbol</label>
+    <div class="symrow" id="symRow">
+      <button data-v="♥" class="active">♥</button>
+      <button data-v="★">★</button>
+      <button data-v="●">●</button>
+      <button data-v="◆">◆</button>
+      <button data-v="✿">✿</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Day size</label>
+    <select id="daySize">
+      <option value="s">Small</option>
+      <option value="m" selected>Medium</option>
+      <option value="l">Large</option>
+      <option value="xl">Extra large</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Scale <span class="scaleval" id="scaleVal">100%</span></label>
+    <input type="range" id="scaleRange" min="70" max="130" value="100">
+  </div>
+
+  <hr class="div">
+
+  <div class="field">
+    <label>เลเยอร์เริ่มต้นของสติกเกอร์ที่เพิ่มใหม่</label>
+    <div class="seg" id="stickerLayerSeg">
+      <button data-v="front" class="active">หน้าเส้น (และหน้าข้อความ)</button>
+      <button data-v="back">หลังเส้น (และหลังข้อความ)</button>
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <div class="field" style="margin-bottom:8px;">
+    <label>Embed link (สำหรับวางใน Notion)</label>
+  </div>
+  <div class="linkrow">
+    <button id="copyFullLink">Copy full link</button>
+    <button id="copyMiniLink" class="ghost">Copy mini link</button>
+  </div>
+  <div class="copied-msg" id="copiedMsg"></div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalDate">15 September</h3>
+    <div class="field">
+      <label>Event title</label>
+      <input type="text" id="evtTitle" placeholder="เช่น dentist appt">
+    </div>
+    <div class="field">
+      <label>Time (optional)</label>
+      <input type="text" id="evtTime" placeholder="เช่น 4:30 PM">
+    </div>
+    <div class="modal-actions">
+      <button class="cancel" id="evtCancel">Cancel</button>
+      <button class="del" id="evtDelete">Delete</button>
+      <button class="save" id="evtSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'scrapbookCalendarState_v2';
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const weekdayFull = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const weekdayShort = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const weekdayInitial = ["S","M","T","W","T","F","S"];
+  const PRESET_EMOJI = ["🎀","🦢","🩰","🌷","🧸","🕊️","📎","✨","🍒","🍑","🐇","🦋","🕯️","🍓","🖇️"];
+
+  function monthKey(y,m){ return y+'-'+m; }
+  function emptyMonth(){ return { cover:null, events:{}, stickers:[] }; }
+
+  function defaultState(){
+    const now = new Date();
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth(),
+      months: {},
+      colors:{ titleBar:"#907562", border:"#907562", text:"#3d3229", title:"#ffffff" },
+      font: "'Playfair Display', serif",
+      weekdayFormat:"initial",
+      eventSymbol:"♥",
+      daySize:"m",
+      scale:100,
+      newStickerLayer:"front"
+    };
+  }
+
+  function getMonthData(state, y, m){
+    const key = monthKey(y,m);
+    if(!state.months[key]) state.months[key] = emptyMonth();
+    return state.months[key];
+  }
+
+  function loadFromHash(){
+    if(location.hash && location.hash.length>1){
+      try{
+        const json = decodeURIComponent(escape(atob(location.hash.slice(1))));
+        const parsed = JSON.parse(json);
+        const base = defaultState();
+        return Object.assign(base, parsed, { months: Object.assign({}, parsed.months||{}) });
+      }catch(e){ console.warn('bad hash', e); }
+    }
+    return null;
+  }
+  function loadFromStorage(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        const base = defaultState();
+        return Object.assign(base, parsed, { months: Object.assign({}, parsed.months||{}) });
+      }
+    }catch(e){}
+    return null;
+  }
+
+  let state = loadFromHash() || loadFromStorage() || defaultState();
+  let selectedStickerId = null;
+  let stickerIdCounter = 1;
+
+  function persist(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
+
+  const $ = id => document.getElementById(id);
+  const calCard=$('calCard'), calCover=$('calCover'), calTitle=$('calTitle');
+  const weekdayRow=$('weekdayRow'), grid=$('grid');
+  const stickersBack=$('stickersBack'), stickersFront=$('stickersFront');
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function render(){
+    const md = getMonthData(state, state.year, state.month);
+
+    calCard.style.transform = 'scale(' + (state.scale/100) + ')';
+    calCard.style.transformOrigin = 'top center';
+    calCard.style.fontFamily = state.font;
+
+    document.documentElement.style.setProperty('--brown', state.colors.border);
+    calCover.style.backgroundColor = state.colors.titleBar;
+    if(md.cover){
+      calCover.style.backgroundImage = 'url(' + md.cover + ')';
+    } else {
+      calCover.style.backgroundImage = 'none';
+    }
+    calTitle.style.color = state.colors.title;
+    document.querySelectorAll('.nav-btn').forEach(b=> b.style.color = state.colors.title);
+    calTitle.textContent = monthNames[state.month] + ' ' + state.year;
+
+    let names = state.weekdayFormat==='full'?weekdayFull:(state.weekdayFormat==='short'?weekdayShort:weekdayInitial);
+    weekdayRow.innerHTML = names.map(n=>'<div>'+n+'</div>').join('');
+
+    calCard.classList.remove('size-s','size-m','size-l','size-xl');
+    calCard.classList.add('size-'+state.daySize);
+
+    const first = new Date(state.year, state.month, 1);
+    const startWeekday = first.getDay();
+    const daysInMonth = new Date(state.year, state.month+1, 0).getDate();
+    const todayD = new Date();
+    let html='';
+    for(let i=0;i<startWeekday;i++) html += '<div class="day empty"></div>';
+    for(let d=1; d<=daysInMonth; d++){
+      const evt = md.events[d];
+      const isToday = todayD.getFullYear()===state.year && todayD.getMonth()===state.month && todayD.getDate()===d;
+      html += '<div class="day'+(isToday?' today':'')+'" data-day="'+d+'" style="color:'+state.colors.text+'">';
+      html += '<span class="num">'+d+'</span>';
+      if(evt && evt.title){
+        html += '<div class="evt"><span>'+state.eventSymbol+'</span><span>'+escapeHtml(evt.title)+(evt.time?'<span class="evt-time">'+escapeHtml(evt.time)+'</span>':'')+'</span></div>';
+      }
+      html += '</div>';
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll('.day:not(.empty)').forEach(el=>{
+      el.addEventListener('click', ()=> openEventModal(parseInt(el.dataset.day,10)));
+    });
+
+    renderStickers(md);
+    syncSettingsUI();
+    persist();
+  }
+
+  function renderStickers(md){
+    stickersBack.innerHTML=''; stickersFront.innerHTML='';
+    md.stickers.forEach(st=>{
+      const el = document.createElement('div');
+      el.className='sticker'+(st.id===selectedStickerId?' selected':'');
+      el.style.left = st.x+'px';
+      el.style.top = st.y+'px';
+      el.style.width = st.w+'px';
+      el.style.height = st.h+'px';
+      el.style.transform = 'rotate('+(st.rot||0)+'deg)';
+      el.dataset.id = st.id;
+
+      if(st.type==='image'){
+        const img=document.createElement('img'); img.src=st.src; el.appendChild(img);
+      } else {
+        const div=document.createElement('div'); div.className='emoji'; div.style.fontSize=Math.round(st.h*0.85)+'px'; div.textContent=st.char; el.appendChild(div);
+      }
+
+      const handle=document.createElement('div'); handle.className='resize-handle'; el.appendChild(handle);
+
+      const toolbar=document.createElement('div'); toolbar.className='sticker-toolbar';
+      toolbar.innerHTML = '<button data-act="rotL">↺</button><button data-act="rotR">↻</button><button data-act="layer">'+(st.layer==='front'?'⬆︎หน้า':'⬇︎หลัง')+'</button><button data-act="del">🗑</button>';
+      el.appendChild(toolbar);
+
+      el.addEventListener('pointerdown', (e)=>{
+        if(e.target.closest('.resize-handle') || e.target.closest('.sticker-toolbar')) return;
+        e.stopPropagation();
+        selectSticker(st.id);
+        startDrag(e, st, el);
+      });
+      handle.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); selectSticker(st.id); startResize(e, st, el); });
+      toolbar.addEventListener('click', (e)=>{
+        const act = e.target.dataset.act;
+        if(!act) return;
+        e.stopPropagation();
+        if(act==='del'){ md.stickers = md.stickers.filter(s=>s.id!==st.id); selectedStickerId=null; render(); }
+        if(act==='rotL'){ st.rot = (st.rot||0) - 15; render(); }
+        if(act==='rotR'){ st.rot = (st.rot||0) + 15; render(); }
+        if(act==='layer'){ st.layer = st.layer==='front'?'back':'front'; render(); }
+      });
+
+      (st.layer==='front'?stickersFront:stickersBack).appendChild(el);
+    });
+  }
+
+  function selectSticker(id){ selectedStickerId = id; render(); }
+
+  function startDrag(e, st, el){
+    const startX=e.clientX, startY=e.clientY, origX=st.x, origY=st.y;
+    function move(ev){
+      st.x = origX + (ev.clientX-startX);
+      st.y = origY + (ev.clientY-startY);
+      el.style.left = st.x+'px'; el.style.top = st.y+'px';
+    }
+    function up(){
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      persist();
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  }
+
+  function startResize(e, st, el){
+    e.preventDefault();
+    const startX=e.clientX, startY=e.clientY, origW=st.w, origH=st.h;
+    const ratio = origH/origW;
+    function move(ev){
+      let newW = Math.max(24, origW + (ev.clientX-startX));
+      let newH = Math.max(24, newW*ratio);
+      st.w=newW; st.h=newH;
+      el.style.width=newW+'px'; el.style.height=newH+'px';
+      const emojiDiv = el.querySelector('.emoji');
+      if(emojiDiv) emojiDiv.style.fontSize = Math.round(newH*0.85)+'px';
+    }
+    function up(){
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      persist();
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  }
+
+  function addSticker(type, payload){
+    const md = getMonthData(state, state.year, state.month);
+    const st = {
+      id: 'st'+(stickerIdCounter++),
+      type,
+      x: 60, y: 60, w: 80, h: 80, rot: 0,
+      layer: state.newStickerLayer
+    };
+    if(type==='image') st.src = payload; else st.char = payload;
+    md.stickers.push(st);
+    selectedStickerId = st.id;
+    render();
+  }
+
+  document.addEventListener('pointerdown', (e)=>{
+    if(!e.target.closest('.sticker')){
+      if(selectedStickerId){ selectedStickerId=null; render(); }
+    }
+  });
+
+  $('prevBtn').addEventListener('click', ()=>{ state.month--; if(state.month<0){state.month=11; state.year--;} selectedStickerId=null; render(); });
+  $('nextBtn').addEventListener('click', ()=>{ state.month++; if(state.month>11){state.month=0; state.year++;} selectedStickerId=null; render(); });
+
+  function syncSettingsUI(){
+    $('cTitleBar').value=state.colors.titleBar; $('cTitleBarHex').value=state.colors.titleBar;
+    $('cBorder').value=state.colors.border; $('cBorderHex').value=state.colors.border;
+    $('cText').value=state.colors.text; $('cTextHex').value=state.colors.text;
+    $('cTitle').value=state.colors.title; $('cTitleHex').value=state.colors.title;
+    $('calFont').value=state.font;
+    $('weekdayFormat').value=state.weekdayFormat;
+    $('daySize').value=state.daySize;
+    $('scaleRange').value=state.scale;
+    $('scaleVal').textContent=state.scale+'%';
+    document.querySelectorAll('#symRow button').forEach(b=>b.classList.toggle('active', b.dataset.v===state.eventSymbol));
+    document.querySelectorAll('#stickerLayerSeg button').forEach(b=>b.classList.toggle('active', b.dataset.v===state.newStickerLayer));
+    $('jumpMonth').value=state.month;
+    $('jumpYear').value=state.year;
+  }
+
+  function bindColor(colorId, hexId, key){
+    $(colorId).addEventListener('input', e=>{ state.colors[key]=e.target.value; render(); });
+    $(hexId).addEventListener('change', e=>{
+      let v=e.target.value.trim(); if(!v.startsWith('#')) v='#'+v;
+      state.colors[key]=v; render();
+    });
+  }
+  bindColor('cTitleBar','cTitleBarHex','titleBar');
+  bindColor('cBorder','cBorderHex','border');
+  bindColor('cText','cTextHex','text');
+  bindColor('cTitle','cTitleHex','title');
+
+  $('calFont').addEventListener('change', e=>{ state.font=e.target.value; render(); });
+  $('weekdayFormat').addEventListener('change', e=>{ state.weekdayFormat=e.target.value; render(); });
+  $('daySize').addEventListener('change', e=>{ state.daySize=e.target.value; render(); });
+  $('scaleRange').addEventListener('input', e=>{ state.scale=parseInt(e.target.value,10); render(); });
+  document.querySelectorAll('#symRow button').forEach(b=> b.addEventListener('click', ()=>{ state.eventSymbol=b.dataset.v; render(); }));
+  document.querySelectorAll('#stickerLayerSeg button').forEach(b=> b.addEventListener('click', ()=>{ state.newStickerLayer=b.dataset.v; render(); }));
+
+  (function initJump(){
+    const mSel=$('jumpMonth'), ySel=$('jumpYear');
+    mSel.innerHTML = monthNames.map((n,i)=>'<option value="'+i+'">'+n+'</option>').join('');
+    const thisYear = new Date().getFullYear();
+    let yOpts='';
+    for(let y=thisYear-15; y<=thisYear+15; y++) yOpts += '<option value="'+y+'">'+y+'</option>';
+    ySel.innerHTML = yOpts;
+    mSel.addEventListener('change', ()=>{ state.month=parseInt(mSel.value,10); selectedStickerId=null; render(); });
+    ySel.addEventListener('change', ()=>{ state.year=parseInt(ySel.value,10); selectedStickerId=null; render(); });
+  })();
+
+  $('coverHint').addEventListener('click', ()=> $('coverInput').click());
+  $('coverInput').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload = ev=>{ getMonthData(state, state.year, state.month).cover = ev.target.result; render(); };
+    reader.readAsDataURL(file);
+    e.target.value='';
+  });
+
+  const stickerPopover=$('stickerPopover');
+  $('stickerIconBtn').addEventListener('click', (e)=>{ e.stopPropagation(); stickerPopover.classList.toggle('show'); });
+  document.addEventListener('click', (e)=>{
+    if(!e.target.closest('#stickerPopover') && !e.target.closest('#stickerIconBtn')) stickerPopover.classList.remove('show');
+  });
+  $('uploadStickerBtn').addEventListener('click', ()=> $('stickerFileInput').click());
+  $('stickerFileInput').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload = ev=>{ addSticker('image', ev.target.result); stickerPopover.classList.remove('show'); };
+    reader.readAsDataURL(file);
+    e.target.value='';
+  });
+  (function initEmojiGrid(){
+    const g=$('emojiGrid');
+    g.innerHTML = PRESET_EMOJI.map(ch=>'<button type="button">'+ch+'</button>').join('');
+    g.querySelectorAll('button').forEach((b,i)=> b.addEventListener('click', ()=>{ addSticker('emoji', PRESET_EMOJI[i]); stickerPopover.classList.remove('show'); }));
+  })();
+
+  const drawer=$('drawer'), overlay=$('overlay');
+  function openDrawer(){ drawer.classList.add('show'); overlay.classList.add('show'); }
+  function closeDrawer(){ drawer.classList.remove('show'); overlay.classList.remove('show'); }
+  $('settingsIconBtn').addEventListener('click', openDrawer);
+  $('closeDrawer').addEventListener('click', closeDrawer);
+  overlay.addEventListener('click', closeDrawer);
+
+  let editingDay=null;
+  const modalBg=$('modalBg');
+  function openEventModal(day){
+    editingDay=day;
+    const md=getMonthData(state, state.year, state.month);
+    const evt=md.events[day]||{title:'',time:''};
+    $('modalDate').textContent = day+' '+monthNames[state.month];
+    $('evtTitle').value=evt.title||'';
+    $('evtTime').value=evt.time||'';
+    modalBg.classList.add('show');
+    setTimeout(()=>$('evtTitle').focus(), 50);
+  }
+  function closeModal(){ modalBg.classList.remove('show'); editingDay=null; }
+  $('evtCancel').addEventListener('click', closeModal);
+  modalBg.addEventListener('click', e=>{ if(e.target===modalBg) closeModal(); });
+  $('evtSave').addEventListener('click', ()=>{
+    const md=getMonthData(state, state.year, state.month);
+    const title=$('evtTitle').value.trim(), time=$('evtTime').value.trim();
+    if(title) md.events[editingDay]={title,time}; else delete md.events[editingDay];
+    closeModal(); render();
+  });
+  $('evtDelete').addEventListener('click', ()=>{
+    const md=getMonthData(state, state.year, state.month);
+    delete md.events[editingDay];
+    closeModal(); render();
+  });
+
+  function encodeState(mini){
+    const s = JSON.parse(JSON.stringify(state));
+    if(mini){
+      Object.keys(s.months).forEach(k=>{
+        s.months[k].cover = null;
+        s.months[k].stickers = (s.months[k].stickers||[]).filter(st=>st.type!=='image');
+      });
+    }
+    const json = unescape(encodeURIComponent(JSON.stringify(s)));
+    return btoa(json);
+  }
+  function buildLink(mini){ return location.origin + location.pathname + '#' + encodeState(mini); }
+  function copyText(text, msg){
+    navigator.clipboard.writeText(text).then(()=>{
+      $('copiedMsg').textContent = msg;
+      setTimeout(()=>$('copiedMsg').textContent='', 2500);
+    }).catch(()=>{ $('copiedMsg').textContent = 'คัดลอกไม่สำเร็จ ลองก็อปด้วยตนเอง'; });
+  }
+  $('copyFullLink').addEventListener('click', ()=> copyText(buildLink(false), 'คัดลอกลิงก์แบบเต็มแล้ว ✓'));
+  $('copyMiniLink').addEventListener('click', ()=> copyText(buildLink(true), 'คัดลอกลิงก์แบบย่อ (ไม่มีรูป) แล้ว ✓'));
+
+  render();
+})();
+</script>
+</body>
+</html>
